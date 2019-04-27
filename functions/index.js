@@ -1,39 +1,99 @@
 const functions = require('firebase-functions');
-const request = require('request');
+const requestLib = require('request');
 
-// // Create and Deploy Your First Cloud Functions
-// // https://firebase.google.com/docs/functions/write-firebase-functions
-//
-// exports.helloWorld = functions.https.onRequest((request, response) => {
-//  response.send("Hello from Firebase!");
-// });
+class SlackPraiseBot {
+    constructor(request, response) {
+        this.request = request;
+        this.response = response;
+        this.body = this.request.body;
 
-exports.slackIdealize = functions.https.onRequest((request, response) => {
-    const body = request.body;
-    console.log(body);
+        console.log(this.request)
+        console.log(this.body)
+        console.log(this.body.event)
 
-    //ヘッダーを定義
-    var headers = {
-        'Content-Type': 'application/json'
+        this.main();
+    }
+    main() {
+        this.token = functions.config().slack.oauth_token;
+
+        if (!this.canResponseToSlack()) {
+            this.responseEmptyWithChallenge();
+            return;
+        }
+
+        this.postToSlack().then((response, body) => {
+            console.log(response);
+            console.log(body);
+            this.responseEmptyWithChallenge();
+            return;
+        }).catch(error => {
+            console.log(error);
+            this.responseEmptyWithChallenge();
+        });
     }
 
-    //オプションを定義
-    var options = {
-        url: 'https://slack.com/api/chat.postMessage',
-        method: 'POST',
-        headers: headers,
-        json: true,
-        form: {
-            token: 'xoxb-387261628675-571774016866-ZXaiTVws3f1iAuF1VeCudnFh',
-            channel: body.event.channel,
-            text: 'わあああああ。こんばんは',
+    makeHeaders() {
+        return {
+            'Authorization': "Bearer " + this.token,
+            'Content-type': 'application/x-www-form-urlencoded',
         }
     }
 
-    //リクエスト送信
-    request(options, (_, _, slackApiPostBody) => {
-        //コールバックで色々な処理
-        console.log(slackApiPostBody);
-        response.status(200).send(body.challenge).end();
-    });
+    isTargetOfPraise() {
+        const {
+            text
+        } = this.body.event;
+        return text && (text.endsWith('だよ') || text.endsWith('たよ'))
+    }
+
+    canResponseToSlack() {
+        return this.body.event && !this.body.event.subtype && this.isTargetOfPraise(this.body.event.text);
+    }
+
+    responseEmptyWithChallenge() {
+        this.response.status(200).set('Content-Type', 'text/plain').send(this.body.challenge).end();
+    }
+
+    makeResponse() {
+        const text = this.body.event.text;
+        let random = Math.floor(Math.random() * 2);
+        let word = ['えらーい', 'すごーい'][random];
+        let textSuffixRemoved = text.slice(0, -2);
+        if (text.endsWith('だよ')) {
+            textSuffixRemoved += 'で' + word;
+            return textSuffixRemoved;
+        }
+        textSuffixRemoved += 'て' + word;
+        return textSuffixRemoved;
+    }
+
+    postToSlack() {
+        var options = {
+            url: 'https://slack.com/api/chat.postMessage',
+            method: 'POST',
+            headers: this.makeHeaders(),
+            form: {
+                token: this.token,
+                channel: this.body.event.channel,
+                text: this.makeResponse(),
+            }
+        }
+
+        return new Promise((resolve, reject) => {
+            requestLib(options, (error, response, body) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+                resolve(response, body);
+            });
+        });
+    }
+}
+
+/**
+ * 〜〜だよ、または〜〜たよという言葉に反応して肯定するBot
+ */
+exports.slackPraiseBot = functions.https.onRequest((request, response) => {
+    new SlackPraiseBot(request, response)
 });

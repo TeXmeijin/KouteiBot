@@ -7,10 +7,6 @@ class SlackPraiseBot {
         this.response = response;
         this.body = this.request.body;
 
-        console.log(this.request)
-        console.log(this.body)
-        console.log(this.body.event)
-
         this.main();
     }
     main() {
@@ -22,12 +18,9 @@ class SlackPraiseBot {
         }
 
         this.postToSlack().then((response, body) => {
-            console.log(response);
-            console.log(body);
             this.responseEmptyWithChallenge();
             return;
         }).catch(error => {
-            console.log(error);
             this.responseEmptyWithChallenge();
         });
     }
@@ -56,8 +49,8 @@ class SlackPraiseBot {
 
     makeResponse() {
         const text = this.body.event.text;
-        let random = Math.floor(Math.random() * 2);
-        let word = ['えらーい', 'すごーい'][random];
+        let random = Math.floor(Math.random() * 3);
+        let word = ['えらーい', 'すごーい', 'すきー！'][random];
         let textSuffixRemoved = text.slice(0, -2);
         if (text.endsWith('だよ')) {
             textSuffixRemoved += 'で' + word;
